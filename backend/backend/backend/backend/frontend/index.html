@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Banana Bites: find your next meal</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐵</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;700&display=swap" rel="stylesheet">
+<style>
+/* PART 3a: design tokens and base */
+:root{--banana:#ffd23f;--jungle:#2d6a4f;--bark:#4a3328;--cream:#fff8e1;--berry:#e5446d;--card:#ffffff;--line:#f0dfa8}
+@media (prefers-color-scheme:dark){:root{--cream:#2a2118;--card:#3a2d22;--bark:#fff2d6;--line:#5a4733;--jungle:#7bd3a3}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--cream);color:var(--bark);font:500 17px/1.5 Nunito,system-ui,sans-serif}
+h1,h2,h3,button,.chip{font-family:Fredoka,system-ui,sans-serif}
+main{max-width:720px;margin:0 auto;padding:20px 16px 60px}
+/* PART 3b: header, monkey and top buttons */
+header{display:flex;gap:14px;align-items:center;margin-bottom:16px}
+#monkey{font-size:64px;line-height:1;cursor:pointer;border:0;background:none;padding:0}
+#monkey.wiggle{animation:wig .6s}
+@keyframes wig{25%{transform:rotate(-14deg)}75%{transform:rotate(14deg)}}
+.bubble{background:var(--card);border:3px solid var(--bark);border-radius:20px 20px 20px 4px;padding:10px 16px;font-weight:700}
+h1{margin:0 0 4px;font-size:34px;color:var(--jungle)}
+nav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+/* PART 3c: cards, chips, inputs, buttons */
+.q{background:var(--card);border:3px solid var(--line);border-radius:24px;padding:16px 18px;margin-bottom:14px}
+.q h2{margin:0 0 4px;font-size:21px}.q p{margin:0 0 10px;font-size:15px;opacity:.8}
+.chips,.row{display:flex;flex-wrap:wrap;gap:8px}
+.row{margin-top:12px}
+.chip{border:3px solid var(--line);background:transparent;color:inherit;border-radius:999px;padding:8px 16px;font-size:17px;font-weight:600;cursor:pointer}
+.chip:hover{border-color:var(--jungle)}
+.chip[aria-pressed=true]{background:var(--banana);border-color:var(--bark);color:#4a3328}
+label{display:block;font-weight:700;margin:12px 0 4px}
+input{width:100%;padding:12px 16px;font:inherit;border:3px solid var(--line);border-radius:16px;background:transparent;color:inherit}
+:focus-visible{outline:4px solid var(--berry);outline-offset:2px}
+.big{width:100%;margin-top:12px;padding:16px;font-size:22px;font-weight:700;background:var(--berry);color:#fff;border:0;border-radius:20px;cursor:pointer;box-shadow:0 5px 0 #a82a4d}
+.big:active{transform:translateY(3px);box-shadow:0 2px 0 #a82a4d}
+.big:disabled{background:#b9a99a;box-shadow:0 5px 0 #8f8071;cursor:not-allowed}
+.msg{margin:10px 0 0;font-size:15px;font-weight:700}
+/* PART 3d: results */
+#out{margin-top:26px}
+.res{background:var(--card);border:3px solid var(--bark);border-radius:24px;padding:16px 18px;margin-bottom:12px}
+.res h3{margin:0 0 6px;font-size:22px}
+.tags{display:flex;flex-wrap:wrap;gap:6px;font-size:14px}
+.tags span{background:var(--line);padding:2px 10px;border-radius:999px}
+.try{background:var(--banana);color:#4a3328;border-color:#4a3328}
+.note{font-size:14px;opacity:.85;margin-top:14px}
+@media (prefers-reduced-motion:reduce){#monkey.wiggle{animation:none}}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <button id="monkey" aria-label="Cheer up the monkey">🐵</button>
+    <div>
+      <h1>Banana Bites</h1>
+      <div class="bubble" id="say">Ooh-ooh! Tell me what you feel like eating.</div>
+    </div>
+  </header>
+  <nav>
+    <button class="chip" id="navLoc">📍 Set location</button>
+    <button class="chip" id="navUser">Sign in</button>
+  </nav>
+
+  <!-- HOME: the food questions -->
+  <div id="home">
+    <section class="q"><h2>Which cuisine?</h2><div class="chips" data-key="cuisine"></div></section>
+    <section class="q"><h2>What kind of food?</h2><div class="chips" data-key="category"></div></section>
+    <section class="q"><h2>Any allergies?</h2><p>Tap all that apply, or none.</p><div class="chips" data-key="allergies" data-multi></div></section>
+    <section class="q"><h2>What is your budget?</h2><div class="chips" data-key="budget"></div></section>
+    <button class="big" id="go" disabled>Find my food!</button>
+    <div id="out" aria-live="polite"></div>
+  </div>
+
+  <!-- LOCATION: asked once, changeable any time -->
+  <div id="location" hidden>
+    <section class="q"><h2>Where are you?</h2>
+      <p>Tell me once and I will remember. Country and city are enough; more detail gives nearer results.</p>
+      <label for="fCountry">Country</label><input type="text" id="fCountry" placeholder="e.g. India" autocomplete="country-name">
+      <label for="fState">State or region (optional)</label><input type="text" id="fState" placeholder="e.g. Assam">
+      <label for="fCity">City or town</label><input type="text" id="fCity" placeholder="e.g. Guwahati" autocomplete="address-level2">
+      <label for="fArea">Area or neighbourhood (optional)</label><input type="text" id="fArea" placeholder="e.g. Dispur">
+      <label for="fRoad">Road or street (optional)</label><input type="text" id="fRoad" placeholder="e.g. G S Road">
+      <p class="msg" id="locMsg" role="alert"></p>
+      <button class="big" id="saveLoc">Save location</button>
+      <div class="row"><button class="chip" data-back>Cancel</button></div>
+    </section>
+  </div>
+
+  <!-- AUTH: sign in or create an account -->
+  <div id="auth" hidden>
+    <section class="q">
+      <div class="chips" id="authTabs">
+        <button class="chip" data-mode="login" aria-pressed="true">Sign in</button>
+        <button class="chip" data-mode="signup" aria-pressed="false">Create account</button>
+      </div>
+      <div id="nameBox" hidden><label for="name">Your name</label><input type="text" id="name" autocomplete="name"></div>
+      <label for="email">Email</label><input type="email" id="email" autocomplete="email">
+      <label for="pw">Password (8 or more characters)</label><input type="password" id="pw" autocomplete="current-password">
+      <p class="msg" id="authMsg" role="alert"></p>
+      <button class="big" id="authGo">Sign in</button>
+      <div class="row"><button class="chip" data-back>Back</button></div>
+    </section>
+  </div>
+
+  <!-- PROFILE: account and location settings -->
+  <div id="profile" hidden>
+    <section class="q"><h2 id="pName"></h2><p id="pEmail"></p>
+      <label>Your location</label><p id="pLoc" style="opacity:1"></p>
+      <div class="row">
+        <button class="chip" id="pChange">Change location</button>
+        <button class="chip" id="pOut">Sign out</button>
+        <button class="chip" data-back>Back</button>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+/* PART 4a: settings. Change API_URL to your Render address when you deploy. */
+const API_URL = "http://127.0.0.1:5000";
+const OPTIONS = {
+  cuisine: ["Indian","Italian","Chinese","Continental","North Indian","South Indian"],
+  category: ["comfort food","protein bowl"],
+  allergies: ["dairy","gluten","peanuts","tree nuts","eggs","seafood","soy","sesame"],
+  budget: [["low","Pocket friendly (up to ₹300)"],["medium","Treat yourself (₹301–700)"],["high","Fancy (₹701+)"]]
+};
+const state = {cuisine:null, category:null, budget:null, allergies:[]};
+let user = null, loc = null;
+const $ = s => document.querySelector(s);
+const esc = t => String(t ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const say = t => { $("#say").textContent = t; };
+const shortLoc = l => [l.area, l.city].filter(Boolean).join(", ") || l.city || "Saved place";
+
+/* PART 4b: remembering things on this device, and talking to the backend */
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
+  set(k, v) { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+};
+async function api(path, method = "GET", body) {
+  const headers = {};
+  const token = store.get("bb_token");
+  if (token) headers.Authorization = "Bearer " + token;
+  if (body) headers["Content-Type"] = "application/json";
+  try {
+    const res = await fetch(API_URL + path, {method, headers, body: body ? JSON.stringify(body) : undefined});
+    return {ok: res.ok, status: res.status, data: await res.json().catch(() => ({}))};
+  } catch (e) {
+    return {ok: false, status: 0, data: {error: "I cannot reach the kitchen. Is the backend running?"}};
+  }
+}
+
+/* PART 4c: screens and the top buttons */
+const VIEWS = ["home", "location", "auth", "profile"];
+function show(v) {
+  VIEWS.forEach(n => { $("#" + n).hidden = n !== v; });
+  if (v === "location") fillLocForm();
+  if (v === "profile") fillProfile();
+  window.scrollTo(0, 0);
+}
+function renderNav() {
+  $("#navLoc").textContent = loc ? "📍 " + shortLoc(loc) : "📍 Set location";
+  $("#navUser").textContent = user ? "👤 " + user.name : "Sign in";
+}
+function setLoc(l) { loc = l; store.set("bb_loc", l); renderNav(); }
+$("#navLoc").onclick = () => show("location");
+$("#navUser").onclick = () => show(user ? "profile" : "auth");
+document.querySelectorAll("[data-back]").forEach(b => { b.onclick = () => show("home"); });
+$("#monkey").onclick = e => { e.target.classList.remove("wiggle"); void e.target.offsetWidth; e.target.classList.add("wiggle"); say("Ooh-ooh-aah-aah! Banana time?"); };
+
+/* PART 4d: the location form (country, state, city, area, road) */
+const LOC_FIELDS = {country: "#fCountry", state: "#fState", city: "#fCity", area: "#fArea", road: "#fRoad"};
+function fillLocForm() {
+  for (const k in LOC_FIELDS) $(LOC_FIELDS[k]).value = loc ? (loc[k] || "") : (k === "country" ? "India" : "");
+  $("#locMsg").textContent = "";
+}
+$("#saveLoc").onclick = async () => {
+  const f = {};
+  for (const k in LOC_FIELDS) f[k] = $(LOC_FIELDS[k]).value.trim();
+  const msg = $("#locMsg");
+  if (!f.country || !f.city) { msg.textContent = "Please fill in at least your country and city."; return; }
+  const btn = $("#saveLoc");
+  btn.disabled = true; msg.textContent = "Looking for your place...";
+  const r = await api("/api/geocode", "POST", f);
+  btn.disabled = false;
+  if (!r.ok) { msg.textContent = r.data.error || "Something went wrong."; return; }
+  const l = {...f, lat: r.data.lat, lng: r.data.lng, label: r.data.label};
+  setLoc(l);
+  let note = r.data.message;
+  if (user) {
+    const s = await api("/api/location", "PUT", l);
+    if (!s.ok) note = "Saved on this device, but I could not save it to your account.";
+  }
+  say(note);
+  show("home");
+};
+
+/* PART 4e: sign in, sign up, profile */
+let authMode = "login";
+function setMode(m) {
+  authMode = m;
+  document.querySelectorAll("#authTabs .chip").forEach(c => c.setAttribute("aria-pressed", c.dataset.mode === m));
+  $("#nameBox").hidden = m !== "signup";
+  $("#authGo").textContent = m === "signup" ? "Create account" : "Sign in";
+  $("#authMsg").textContent = "";
+}
+document.querySelectorAll("#authTabs .chip").forEach(c => { c.onclick = () => setMode(c.dataset.mode); });
+async function adopt(p) {   // use an account's saved details
+  user = {name: p.name, email: p.email};
+  if (p.location) setLoc(p.location);
+  else if (loc) await api("/api/location", "PUT", loc);   // keep the place they typed before signing in
+  renderNav();
+}
+$("#authGo").onclick = async () => {
+  const body = {email: $("#email").value.trim(), password: $("#pw").value};
+  if (authMode === "signup") body.name = $("#name").value.trim();
+  const btn = $("#authGo");
+  btn.disabled = true; $("#authMsg").textContent = "One moment...";
+  const r = await api("/api/" + authMode, "POST", body);
+  btn.disabled = false;
+  if (!r.ok) { $("#authMsg").textContent = r.data.error || "Something went wrong."; return; }
+  store.set("bb_token", r.data.token);
+  $("#pw").value = ""; $("#authMsg").textContent = "";
+  await adopt(r.data.profile);
+  say("Welcome, " + user.name + "!");
+  show(loc ? "home" : "location");
+};
+function fillProfile() {
+  $("#pName").textContent = user.name;
+  $("#pEmail").textContent = user.email;
+  $("#pLoc").textContent = loc ? shortLoc(loc) + (loc.label ? " (" + loc.label + ")" : "") : "Not set yet";
+}
+$("#pChange").onclick = () => show("location");
+$("#pOut").onclick = () => {
+  store.set("bb_token", null); store.set("bb_loc", null);
+  user = null; loc = null; renderNav();
+  say("Signed out. See you soon!");
+  show("location");
+};
+document.querySelectorAll("#auth input").forEach(i => { i.onkeydown = e => { if (e.key === "Enter") $("#authGo").click(); }; });
+document.querySelectorAll("#location input").forEach(i => { i.onkeydown = e => { if (e.key === "Enter") $("#saveLoc").click(); }; });
+
+/* PART 4f: the food question chips */
+document.querySelectorAll(".chips[data-key]").forEach(box => {
+  const key = box.dataset.key, multi = "multi" in box.dataset;
+  OPTIONS[key].forEach(o => {
+    const [value, label] = Array.isArray(o) ? o : [o, o];
+    const b = document.createElement("button");
+    b.className = "chip"; b.textContent = label; b.setAttribute("aria-pressed", "false");
+    b.onclick = () => {
+      if (multi) {
+        state[key] = state[key].includes(value) ? state[key].filter(v => v !== value) : [...state[key], value];
+        b.setAttribute("aria-pressed", state[key].includes(value));
+      } else {
+        state[key] = value;
+        box.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", "false"));
+        b.setAttribute("aria-pressed", "true");
+      }
+      $("#go").disabled = !(state.cuisine && state.category && state.budget);
+      say($("#go").disabled ? "Keep going, I am getting hungry!" : "Perfect! Press the big pink button.");
+    };
+    box.appendChild(b);
+  });
+});
+
+/* PART 4g: search and show the answer */
+$("#go").onclick = async () => {
+  if (!loc) { say("Tell me where you are first."); show("location"); return; }
+  const out = $("#out");
+  out.innerHTML = ""; say("Sniffing around for snacks...");
+  const r = await api("/api/recommend", "POST",
+    {...state, lat: loc.lat, lng: loc.lng, places: [loc.area, loc.city].filter(Boolean)});
+  if (!r.ok) { say(r.data.error || "Something went wrong."); return; }
+  const data = r.data;
+
+  let html = "";
+  if (data.dishes.length) {
+    html += data.dishes.map(d => `<div class="res try"><h3>🍌 Try: ${esc(d.name)}</h3>
+      <div class="tags"><span>${esc(d.diet)}</span><span>${esc(d.course)}</span>${d.state ? `<span>${esc(d.state)}</span>` : ""}
+      <span>${d.allergens ? "contains: " + esc(d.allergens.split(";").join(", ")) : "no listed allergens"}</span></div>
+      <p>Main ingredients: ${esc(d.ingredients)}</p></div>`).join("");
+  } else {
+    html += `<div class="res try"><h3>No dish to suggest</h3><p>${data.searched_dishes
+      ? "Every matching dish contains one of your allergens. Try removing a filter."
+      : "My dish list has no " + esc(state.cuisine) + " dishes yet. Add some in data/extra_dishes.csv."}</p></div>`;
+  }
+  if (data.restaurants.length) {
+    html += data.restaurants.map(x => `<div class="res"><h3>${esc(x.restaurant_name)}</h3>
+      <div class="tags"><span>⭐ ${esc(x.rating ?? "new")}</span><span>₹${esc(x.price)}</span><span>${x.distance_km != null ? esc(x.distance_km) + " km away" : esc(x.area)}</span>
+      <span>${esc(x.cuisine)}</span>${x.pure_veg ? `<span>${esc(x.pure_veg)}</span>` : ""}</div>
+      ${x.offer_name ? `<p>Offer: ${esc(x.offer_name)}</p>` : ""}</div>`).join("");
+    say(data.mode === "distance" ? "Nearest spots first!" : "Found some yummy spots!");
+  } else {
+    html += `<div class="res"><h3>No restaurants matched</h3><p>Try a different budget or cuisine, or change your location.</p></div>`;
+    say("Hmm, no spots. Try loosening a choice.");
+  }
+  out.innerHTML = html + `<p class="note">Distances are straight-line. Allergen tags are guessed from ingredient lists. Always check with the restaurant before you order.</p>`;
+  out.scrollIntoView({behavior: "smooth"});
+};
+
+/* PART 4h: start up. Remember the location and the sign-in from last time. */
+(async () => {
+  loc = store.get("bb_loc");
+  if (store.get("bb_token")) {
+    const r = await api("/api/me");
+    if (r.ok) await adopt(r.data);
+    else if (r.status === 401) store.set("bb_token", null);
+  }
+  renderNav();
+  show(loc ? "home" : "location");
+})();
+</script>
+</body>
+</html>
